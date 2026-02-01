@@ -24,7 +24,7 @@ from src.hopsworks_client import (
     FEATURE_GROUP_NAME,
     FEATURE_GROUP_VERSION,
 )
-from src.models import train_logreg
+from training.models import train_logreg
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 

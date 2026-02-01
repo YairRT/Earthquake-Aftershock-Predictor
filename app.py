@@ -48,10 +48,10 @@ else:
     # If no .env found, try loading from current directory anyway
     load_dotenv(override=True)
 from src.viz import mag_hist, map_plot, freq_plot
-from src.usgs_client import get_earthquakes
-from src.features import add_seq_feat, basic_time_feats, mag_stats, depth_stats
-from src.labels import add_aftershock_label
-from src.models import predict_aftershock_proba
+from ingestion.usgs_client import get_earthquakes
+from features.features import add_seq_feat, basic_time_feats, mag_stats, depth_stats
+from features.labels import add_aftershock_label
+from training.models import predict_aftershock_proba
 from src.hopsworks_client import (
     save_features_to_hopsworks,
     load_model_from_hopsworks

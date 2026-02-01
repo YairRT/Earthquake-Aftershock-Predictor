@@ -88,7 +88,7 @@ def mag_hist(df: pd.DataFrame, bins: int = 30):
     return px.histogram(df, x='magnitude',nbins=bins)
 
 if __name__=='__main__':
-    from usgs_client import get_earthquakes
+    from ingestion.usgs_client import get_earthquakes
     from datetime import datetime, timedelta
     days=30
 

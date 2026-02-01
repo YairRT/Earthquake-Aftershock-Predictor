@@ -1,13 +1,33 @@
-services:
-  streamlit-app:
-    build: .
-    container_name: earthquake-predictor
-    ports:
-      - "8502:8501"
-    environment:
-      - HOPSWORKS_API_KEY=${HOPSWORKS_API_KEY}
-      - HOPSWORKS_ENGINE=python
-    env_file:
-      - .env
-    restart: unless-stopped
+version: '3.9'
 
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password   # <-- Make sure this line is present and not empty
+      POSTGRES_DB: earthquake_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgreInfo:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+    environment:
+      POSTGRE_USERNAME: postgres
+      POSTGRE_PASSWORD: password
+      POSTGRE_HOST: db
+      POSTGRE_PORT: 5432
+      POSTGRE_DB: earthquake_db
+    volumes:
+      - .:/app
+    command: python src/ingestion/usgs_client.py
+
+volumes:
+  postgres_data:

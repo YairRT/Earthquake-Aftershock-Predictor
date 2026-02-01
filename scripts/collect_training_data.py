@@ -15,9 +15,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.usgs_client import get_earthquakes
-from src.features import basic_time_feats, add_seq_feat
-from src.labels import add_aftershock_label
+from ingestion.usgs_client import get_earthquakes
+from features.features import basic_time_feats, add_seq_feat
+from features.labels import add_aftershock_label
 from src.hopsworks_client import save_features_to_hopsworks
 import pandas as pd
 from datetime import datetime, timedelta, timezone

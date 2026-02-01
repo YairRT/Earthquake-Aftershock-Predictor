@@ -2,188 +2,58 @@
 
 A machine learning application that predicts the probability of aftershocks for recent earthquakes. The app uses a trained logistic regression model to analyze earthquake data and flag high-risk events that are likely to trigger aftershocks.
 
-Visit the deployed app: https://earthquake-aftershock.app.cloud.cbh.kth.se/
+## Installation Instructions
 
+## Usage
 
-![Main Dashboard](images/overview.png)
+## Features
 
-## 🎯 Purpose
+## Project Structure
+The general structure of the project is as follows:
 
-**Main Goal:** Identify earthquakes with high risk of aftershocks to help with early warning and risk assessment.
+aftershock-risk/
+├── data/
+├── src/
+│   ├── ingestion/
+│   ├── features/
+│   ├── training/
+│   ├── inference/
+│   └── monitoring/
+├── api/
+│   └── main.py
+├── models/
+├── scripts/
+│   ├── train.py
+│   ├── retrain.py
+│   └── evaluate.py
+├── Dockerfile
+├── requirements.txt
+└── README.md
 
-The app:
-- Fetches recent earthquake data from the USGS API
-- Uses a trained ML model to predict aftershock probability for each earthquake
-- **Visualizes risk on an interactive map** (red = high risk, green = low risk)
-- **Flags high-risk events** with warnings and detailed information
+* data/ --> Here, the raw data gotten from USGS is stored, also cleaned data and        labeled one.
 
-## 🏗️ How It Works
+* src/ingestion --> Pull information from USGS and normalization of data
 
-1. **Data Collection**: The app fetches earthquake data from USGS based on user-selected region and time period
-2. **Feature Engineering**: Extracts features like magnitude, depth, time since previous earthquake, distance to previous earthquake, and rolling counts
-3. **Prediction**: Uses a pre-trained logistic regression model to predict the probability of aftershocks
-4. **Visualization**: Displays earthquakes on a map color-coded by risk level:
-   - 🔴 **Red** = Very High Risk (70-100% probability)
-   - 🟠 **Orange** = High Risk (50-70% probability)
-   - 🟡 **Yellow** = Medium Risk (30-50% probability)
-   - 🟢 **Green** = Low Risk (0-30% probability)
-5. **Risk Warnings**: Automatically flags and displays details for earthquakes with >50% aftershock probability
+* src/features --> Building of feature logic from USGS normalized data
 
-![Interactive Map](images/map.png)
+* src/training --> Train and package a model artifact.
 
-## 📊 Data Source & Data Collection
+* src/inference --> Compute prediction from a model artifact
 
-### Data Source: USGS Earthquake API
+* src/monitoring --> Track health of data overtime and check for covariate shift and concept drift
 
-The application uses the **United States Geological Survey (USGS) FDSNWS Event Web Service** as its primary data source. This is a publicly available, real-time earthquake monitoring service that provides comprehensive earthquake data from seismic networks worldwide.
+* api/ --> The running service
 
-**API Endpoint:** `https://earthquake.usgs.gov/fdsnws/event/1/query`
+* models/ --> model versions
 
-### Raw Data Captured
+* scripts/train --> A command you can run from terminal to train the model
 
-For each earthquake event, we capture the following raw data from the USGS API:
+* scripts/retrain --> Fetches the newest data and trains a model based on it
 
-- **`time`** - Timestamp of the earthquake (UTC)
-- **`magnitude`** - Earthquake magnitude (Richter scale)
-- **`place`** - Human-readable location description
-- **`longitude`** - Geographic longitude (-180 to 180)
-- **`latitude`** - Geographic latitude (-90 to 90)
-- **`depth`** - Depth of the earthquake in kilometers
-- **`event_id`** - Unique USGS event identifier
+* scripts/evaluate --> Standard evaluation runner
 
-### Feature Engineering
+## Contributing
 
-The raw data is then processed to create predictive features:
+## License
 
-**Basic Features:**
-- `magnitude` - Direct from USGS
-- `depth` - Direct from USGS
-- `hour` - Hour of day (0-23)
-- `dayofweek` - Day of week (0=Monday, 6=Sunday)
-
-**Sequence Features:**
-- `time_since_prev_hours` - Hours since the previous earthquake
-- `distance_to_prev_km` - Distance to previous earthquake (Haversine formula)
-- `rolling_count_6h` - Number of earthquakes in the last 6 hours
-- `rolling_count_24h` - Number of earthquakes in the last 24 hours
-
-### Data Storage
-
-All collected data (raw + engineered features) is stored in **Hopsworks Feature Store** for:
-- Model training and retraining
-- Historical analysis
-- Feature versioning and reproducibility
-
-The app automatically saves new earthquake data to the Feature Store each time it runs, enabling continuous model improvement as more data becomes available.
-
-## 📁 Project Structure
-
-* `app.py` - Main Streamlit application (user interface)
-* `src/usgs_client.py` - Fetches earthquake data from USGS API
-* `src/features.py` - Feature engineering (time features, sequence features, statistics)
-* `src/labels.py` - Creates aftershock labels (y=1 if aftershock occurs within T hours and R km)
-* `src/models.py` - ML model training and prediction functions
-* `src/viz.py` - Visualizations (maps, charts, plots)
-* `src/hopsworks_client.py` - Hopsworks integration (Feature Store & Model Registry)
-* `scripts/train_model.py` - Script to train and save the ML model
-
-## 🚀 Setup
-
-### 1. Install Dependencies
-
-```bash
-# Create and activate virtual environment (Python 3.12 recommended)
-python3.12 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install packages
-pip install -r requirements.txt
-```
-
-### 2. Configure Hopsworks
-
-Create a `.env` file in the project root:
-
-```bash
-HOPSWORKS_API_KEY=your_api_key_here
-```
-
-Get your API key from [Hopsworks Serverless](https://c.app.hopsworks.ai)
-
-## 📖 Usage
-
-### Running the Application
-
-```bash
-streamlit run app.py
-```
-
-The app will:
-1. ✅ Load the trained model from Hopsworks Model Registry
-2. ✅ Fetch earthquake data based on your selections (region, time period, magnitude)
-3. ✅ Generate predictions for each earthquake
-4. ✅ Display results on an interactive map with risk color-coding
-5. ✅ Show warnings for high-risk events
-6. ✅ Save new data to Hopsworks Feature Store for future model retraining
-
-### Collecting Training Data
-
-**Recommended: Use the automated data collection script** to gather 10,000+ samples:
-
-```bash
-python scripts/collect_training_data.py
-```
-
-This script will:
-- Automatically collect data from multiple regions (Japan, Mexico, Chile, California, Indonesia, Global)
-- Collect data from the last 2 years in 90-day chunks
-- Save data to Hopsworks Feature Store as it collects
-- Target: 10,000+ samples for a robust model
-
-**Alternative: Manual collection via Streamlit app:**
-1. In the Streamlit app, set:
-   - **Number of earthquakes**: 1000+ (maximum)
-   - **Time span**: 90+ days (or longer)
-   - Run the app multiple times with different date ranges
-   - Try different regions to get diverse data
-
-2. Each time you run the app, data is saved to Hopsworks Feature Store
-
-### Training a New Model
-
-**After collecting data**, train the model:
-
-```bash
-python scripts/train_model.py
-```
-
-**⚠️ Important - Data Requirements:**
-- **Minimum recommended: 2000+ samples** for a trustworthy model
-- **Better: 5000+ samples** for more reliable predictions
-- **Best: 10,000+ samples** for production-ready model
-- The model needs at least 20 positive labels (aftershocks) to train
-
-This script:
-1. Loads all historical data from Hopsworks Feature Store
-2. Warns if dataset is too small (< 2000 samples)
-3. Trains a logistic regression model
-4. Evaluates model performance (AUC, classification report)
-5. Saves the model to Hopsworks Model Registry
-
-**Note:** The model only needs to be trained once (or when you want to retrain with new data). After training, the Streamlit app will automatically load and use the model.
-
-## 🔧 How the Model Works
-
-The model uses **Logistic Regression** to predict aftershock probability based on:
-
-- **Magnitude** - Earthquake magnitude
-- **Depth** - Earthquake depth (km)
-- **Time since previous** - Hours since the last earthquake
-- **Distance to previous** - Kilometers from the previous earthquake
-- **Rolling counts** - Number of earthquakes in the last 6h and 24h
-
-**Label Definition:** An earthquake is labeled as having an aftershock (y=1) if another earthquake occurs within:
-- **T hours** (default: 24 hours)
-- **R kilometers** (default: 100 km)
-
-
+## Contact/Support
