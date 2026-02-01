@@ -25,9 +25,10 @@ services:
       POSTGRE_HOST: db
       POSTGRE_PORT: 5432
       POSTGRE_DB: earthquake_db
+      PYTHONPATH: /app
     volumes:
       - .:/app
-    command: python src/ingestion/usgs_client.py
+    command: python src/features/features.py
 
 volumes:
   postgres_data:

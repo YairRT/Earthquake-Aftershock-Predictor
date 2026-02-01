@@ -1,20 +1,42 @@
 import pandas as pd 
 import numpy as np
 
+def read_from_sql(table_name: str, engine) -> pd.DataFrame:
+    query = f'SELECT * FROM {table_name};'
+    with engine.connect() as conn:
+        df = pd.read_sql_query(query, conn)
+    return df
+
+def preprocess_df(df: pd.DataFrame) -> pd.DataFrame:
+    '''
+    Basic preprocessing steps
+    - Convert data types
+    - Handle missing values
+    '''
+    out = df.copy()
+
+    # Convert data types
+    out['time'] = pd.to_datetime(out['time'], utc=True, errors='coerce')
+    out['magnitude'] = pd.to_numeric(out['magnitude'], errors='coerce')
+    out['depth'] = pd.to_numeric(out['depth'], errors='coerce')
+    out['latitude'] = pd.to_numeric(out['latitude'], errors='coerce')
+    out['longitude'] = pd.to_numeric(out['longitude'], errors='coerce')
+
+    # Handle missing values - for simplicity, drop rows with missing critical values
+    out = out.dropna(subset=['event_id', 'time', 'magnitude', 'latitude', 'longitude', 'depth'])
+
+    return out
+
 def basic_time_feats(df: pd.DataFrame):
     '''
     Docstring for basic_time_feats
-    
-    :param df: dataframe of earthquake data 
+
     :type df: dataframe type with time columns (dayOfWeek, hour, etc)
     '''
-    out = df.copy()
-    out['time'] = pd.to_datetime(out['time'], utc=True, errors='coerce')
-    out = out.dropna(subset=['time']).sort_values('time').reset_index(drop=True)
 
-    out['hour'] = out['time'].dt.hour # type: ignore
-    out['dayofweek'] = out['time'].dt.dayofweek # type: ignore # Monday = 0
-    return out
+    df['hour'] = df['time'].dt.hour # type: ignore
+    df['dayofweek'] = df['time'].dt.dayofweek # type: ignore # Monday = 0
+    return df
 
 def compute_freq_series(df: pd.DataFrame, freq: str = 'D'):
     '''
@@ -28,11 +50,8 @@ def compute_freq_series(df: pd.DataFrame, freq: str = 'D'):
     if df.empty:
         return pd.DataFrame({'time':[],'count':[]})
     
-    tmp = df.copy()
-    tmp['time'] = pd.to_datetime(tmp['time'], utc=True, errors='coerce')
-    tmp = tmp.dropna(subset=['time']) 
 
-    counts = tmp.set_index('time').resample(freq).size().reset_index(name='count')
+    counts = df.set_index('time').resample(freq).size().reset_index(name='count')
 
     return counts
 
@@ -45,56 +64,50 @@ def add_seq_feat(df: pd.DataFrame):
         - distance_to_prev_km
         - rolling_count_6hr, rolling_count_24h (based on event times)
     '''
-    out = df.copy()
-    if out.empty:
-        return out
-    
-    #out["time"] = pd.to_datetime(out["time"], utc=True, errors="coerce") # can be eliminated
-    out = out.dropna(subset=['time', 'latitude','longitude']).sort_values('time').reset_index(drop=True)
+    if df.empty:
+        return df
 
     # Time since previous event (hours)
-    dt = out['time'].diff().dt.total_seconds() / 3600.0 # type: ignore
-    out['time_since_prev_hours'] = dt.fillna(np.nan)
+    dt = df['time'].diff().dt.total_seconds() / 3600.0 # type: ignore
+    df['time_since_prev_hours'] = dt.fillna(np.nan)
 
     # distance to previous event (km) using haversine
-    out['distance_to_prev_km'] = haversine_km_convert(
-        out['latitude'].shift(1),
-        out['longitude'].shift(1),
-        out['latitude'],
-        out['longitude']
+    df['distance_to_prev_km'] = haversine_km_convert(
+        df['latitude'].shift(1),
+        df['longitude'].shift(1),
+        df['latitude'],
+        df['longitude']
     )
 
     # Rolling counts how many quakes happened in the last X hours before each event
     # A rolling window aligned to each event timestam
-    out = out.set_index('time')
-    out['rolling_count_6h'] = out['event_id'].rolling('6h').count().shift(1)
-    out['rolling_count_24h'] = out['event_id'].rolling('24h').count().shift(1)
-    out = out.reset_index()
+    df = df.sort_values('time').set_index('time')
+    df['rolling_count_6h'] = df['event_id'].rolling('6h').count().shift(1)
+    df['rolling_count_24h'] = df['event_id'].rolling('24h').count().shift(1)
+    df = df.reset_index()
 
-    out['rolling_count_6h'] = out['rolling_count_6h'].fillna(0).astype(int)
-    out['rolling_count_24h'] = out['rolling_count_24h'].fillna(0).astype(int)
+    df['rolling_count_6h'] = df['rolling_count_6h'].fillna(0).astype(int)
+    df['rolling_count_24h'] = df['rolling_count_24h'].fillna(0).astype(int)
 
-    return out
+    return df
 
 def depth_stats(df: pd.DataFrame):
     '''
     Write some statistics regarding depth
     '''
-    d = pd.to_numeric(df['depth'], errors='coerce').dropna()
-    if d.empty:
+    if df.empty:
         return {'mean': None, 'p50': None, 'p90': None, 'max': None}
     
-    return {'mean': float(d.mean()), 'p50': float(d.quantile(0.50)), 'p90': float(d.quantile(0.90)), 'max': float(d.max())}
+    return {'mean': float(df['depth'].mean()), 'p50': float(df['depth'].quantile(0.50)), 'p90': float(df['depth'].quantile(0.90)), 'max': float(df['depth'].max())}
 
 def mag_stats(df: pd.DataFrame):
     '''
     Write some statis regarding mag
     '''
-    m = pd.to_numeric(df['magnitude'], errors='coerce').dropna()
-    if m.empty:
+    if df.empty:
         return {'mean': None, 'p50': None, 'p90': None, 'max': None}
     
-    return {'mean': float(m.mean()), 'p50': float(m.quantile(0.50)), 'p90': float(m.quantile(0.90)), 'max': float(m.max())}
+    return {'mean': float(df['magnitude'].mean()), 'p50': float(df['magnitude'].quantile(0.50)), 'p90': float(df['magnitude'].quantile(0.90)), 'max': float(df['magnitude'].max())}
 
 
 # Now let's create a function to calculate distance in Km in between two geospatial points on earth
@@ -108,10 +121,10 @@ def haversine_km_convert(lat1, lon1, lat2, lon2):
     R = 6371.0 # Radius of Earth in KMm
 
     # Convert from degrees to rad
-    lat1 = np.radians(pd.to_numeric(lat1, errors='coerce'))
-    lon1 = np.radians(pd.to_numeric(lon1, errors='coerce'))
-    lat2 = np.radians(pd.to_numeric(lat2, errors='coerce'))
-    lon2 = np.radians(pd.to_numeric(lon2, errors='coerce'))
+    lat1 = np.radians(lat1)
+    lon1 = np.radians(lon1)
+    lat2 = np.radians(lat2)
+    lon2 = np.radians(lon2)
 
     dlat = lat2 - lat1
     dlon = lon2 - lon1
@@ -122,28 +135,39 @@ def haversine_km_convert(lat1, lon1, lat2, lon2):
     c = 2 * np.arcsin(np.sqrt(a)) # to calculate for the great-circle distance
     return R * c
 
-if __name__=='__main__':
-    from ingestion.usgs_client import get_earthquakes
-    from datetime import datetime, timedelta
+
+def main():
+    from datetime import datetime, timedelta, timezone
+    from src.ingestion.usgs_client import get_postgres_engine
+
+    table_name = 'earthquakes'
+
     days=30
 
-    end = datetime.utcnow()
-    start = end - timedelta(days=days)
-    starttime = start.strftime('%Y-%m-%d')
-    endtime = end.strftime('%Y-%m-%d')
+    print('Reading data from Postgres...')
 
-    df = get_earthquakes(starttime=starttime,endtime=endtime,min_magnitude=5,limit=200)
+    engine = get_postgres_engine()
+    df = read_from_sql(table_name, engine)
+    print(f"Total records retrieved from SQL: {len(df)}")
+
+    print('Data from Postgres read successfully. Preprocessing...')
+
+    df = preprocess_df(df)
+    print(f"Total records after preprocessing: {len(df)}")
+
+    print('Preprocessing done. Generating features...')
+
 
     print('Basic time features:')
-    seq = basic_time_feats(df).head()
-    print(seq)
+    seq = basic_time_feats(df)
+    print(seq.head())
 
     print('\nFrequency series (daily)')
     print(compute_freq_series(df).head())
 
     print('\nSequence features:')
-    seq = add_seq_feat(seq).head()
-    print(seq)
+    seq = add_seq_feat(seq)
+    print(seq.head())
     print(seq.columns)
 
     print('\nStatistics of depth')
@@ -151,3 +175,14 @@ if __name__=='__main__':
 
     print('\nStatistics of magnitude')
     print(mag_stats(df))
+
+    print('Feature generation completed successfully.')
+
+if __name__=='__main__':
+    main()
+
+
+# Next thing to do:
+# - Create a notebook to test these features (check what is this)
+# - Create unit tests for these functions (check what is this)
+# - Save thiese features into a new table in Postgres
