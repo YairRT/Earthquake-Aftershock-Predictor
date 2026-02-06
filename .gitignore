@@ -7,3 +7,7 @@ images/
 __pycache__/
 .vscode/
 .DS_Store
+
+# Ignore test and notebook files
+tests/
+notebooks/

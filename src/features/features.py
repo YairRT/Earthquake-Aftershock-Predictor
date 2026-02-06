@@ -80,10 +80,12 @@ def add_seq_feat(df: pd.DataFrame):
     )
 
     # Rolling counts how many quakes happened in the last X hours before each event
-    # A rolling window aligned to each event timestam
+    # A rolling window aligned to each event timestamp
+    # Using closed='left' excludes the current event from the count
     df = df.sort_values('time').set_index('time')
-    df['rolling_count_6h'] = df['event_id'].rolling('6h').count().shift(1)
-    df['rolling_count_24h'] = df['event_id'].rolling('24h').count().shift(1)
+
+    df['rolling_count_6h'] = df['event_id'].rolling('6h', closed='left').count()
+    df['rolling_count_24h'] = df['event_id'].rolling('24h', closed='left').count()
     df = df.reset_index()
 
     df['rolling_count_6h'] = df['rolling_count_6h'].fillna(0).astype(int)
@@ -186,3 +188,4 @@ if __name__=='__main__':
 # - Create a notebook to test these features (check what is this)
 # - Create unit tests for these functions (check what is this)
 # - Save thiese features into a new table in Postgres
+
