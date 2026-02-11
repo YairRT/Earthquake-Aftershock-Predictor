@@ -85,7 +85,11 @@ def save_to_postgres(df, table_name, engine):
     :param table_name: Name of the table where to save the data
     :param engine: SQLAlchemy engine connected to the Postgres database
     '''
-    df.to_sql(table_name,engine, if_exists='append', index=False)
+    cols = ', '.join(df.columns)
+    placeholders = ', '.join(f':{col}' for col in df.columns)
+    sql = text(f'INSERT INTO {table_name} ({cols}) VALUES ({placeholders}) ON CONFLICT (event_id) DO NOTHING')
+    with engine.begin() as conn:
+        conn.execute(sql, df.to_dict(orient='records'))
     print(f"Data saved to table {table_name} successfully.")
 
 def get_postgres_engine():
@@ -117,7 +121,7 @@ def create_postgres_table(engine, table_name):
         depth FLOAT
     );
     '''
-    with engine.connect() as connection:
+    with engine.begin() as connection:
         connection.execute(text(create_table_query))
     print(f"Table {table_name} is ready.")
 
@@ -128,7 +132,7 @@ def main():
     endtime = end.strftime('%Y-%m-%d')
     table_name = 'earthquakes'
 
-    data = get_earthquakes(starttime=starttime, endtime=endtime, min_magnitude=6,limit= 100)
+    data = get_earthquakes(starttime=starttime, endtime=endtime, min_magnitude=3,limit= 100)
     print_df_info(data)
 
     engine = get_postgres_engine()

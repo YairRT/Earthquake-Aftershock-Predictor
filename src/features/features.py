@@ -67,6 +67,7 @@ def add_seq_feat(df: pd.DataFrame):
     if df.empty:
         return df
 
+    df = df.sort_values('time').reset_index(drop=True)
     # Time since previous event (hours)
     dt = df['time'].diff().dt.total_seconds() / 3600.0 # type: ignore
     df['time_since_prev_hours'] = dt.fillna(np.nan)
@@ -82,7 +83,7 @@ def add_seq_feat(df: pd.DataFrame):
     # Rolling counts how many quakes happened in the last X hours before each event
     # A rolling window aligned to each event timestamp
     # Using closed='left' excludes the current event from the count
-    df = df.sort_values('time').set_index('time')
+    df = df.set_index('time')
 
     df['rolling_count_6h'] = df['event_id'].rolling('6h', closed='left').count()
     df['rolling_count_24h'] = df['event_id'].rolling('24h', closed='left').count()
@@ -137,6 +138,14 @@ def haversine_km_convert(lat1, lon1, lat2, lon2):
     c = 2 * np.arcsin(np.sqrt(a)) # to calculate for the great-circle distance
     return R * c
 
+def save_features_to_sql(df: pd.DataFrame, table_name: str, engine):
+    '''
+    Saves the features dataframe to a new table in Postgres
+    '''
+    df.to_sql(table_name, engine, if_exists='replace', index=False)
+    print(f"Features saved to table {table_name} successfully.")
+
+
 
 def main():
     from datetime import datetime, timedelta, timezone
@@ -180,12 +189,16 @@ def main():
 
     print('Feature generation completed successfully.')
 
+    save_features_to_sql(seq, 'earthquake_features', engine)
+    print('Features saved to Postgres successfully.')
+
 if __name__=='__main__':
     main()
 
 
 # Next thing to do:
-# - Create a notebook to test these features (check what is this)
-# - Create unit tests for these functions (check what is this)
-# - Save thiese features into a new table in Postgres
+# Replace the save features in postgres with either the function already implemented in 
+# usgs_client or create a new file with all the sql related functions (save, read, etc) and use it in both places (ingestion and features)
+# Give labels to the new data 
+# Store this in a new table in Postgres
 
