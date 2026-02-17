@@ -29,6 +29,7 @@ services:
     volumes:
       - .:/app
     command: python src/features/features.py
+    #command: python src/ingestion/usgs_client.py
 
 volumes:
   postgres_data:

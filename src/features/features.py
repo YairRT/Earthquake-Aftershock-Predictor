@@ -1,11 +1,7 @@
 import pandas as pd 
 import numpy as np
+from src.GeneralFunctions.sql_functions import read_from_sql, save_to_postgres, create_postgres_table, create_postgres_table
 
-def read_from_sql(table_name: str, engine) -> pd.DataFrame:
-    query = f'SELECT * FROM {table_name};'
-    with engine.connect() as conn:
-        df = pd.read_sql_query(query, conn)
-    return df
 
 def preprocess_df(df: pd.DataFrame) -> pd.DataFrame:
     '''
@@ -138,22 +134,34 @@ def haversine_km_convert(lat1, lon1, lat2, lon2):
     c = 2 * np.arcsin(np.sqrt(a)) # to calculate for the great-circle distance
     return R * c
 
-def save_features_to_sql(df: pd.DataFrame, table_name: str, engine):
-    '''
-    Saves the features dataframe to a new table in Postgres
-    '''
-    df.to_sql(table_name, engine, if_exists='replace', index=False)
-    print(f"Features saved to table {table_name} successfully.")
-
-
 
 def main():
     from datetime import datetime, timedelta, timezone
     from src.ingestion.usgs_client import get_postgres_engine
 
     table_name = 'earthquakes'
+    table_name_features = 'earthquake_features'
 
     days=30
+
+    query = f'''
+    CREATE TABLE IF NOT EXISTS {table_name_features} (
+        event_id TEXT PRIMARY KEY,
+        time TIMESTAMP,
+        magnitude FLOAT,
+        place TEXT,
+        longitude FLOAT,
+        latitude FLOAT,
+        depth FLOAT,
+        hour INT,
+        dayofweek INT,
+        time_since_prev_hours FLOAT,
+        distance_to_prev_km FLOAT,
+        rolling_count_6h INT,
+        rolling_count_24h INT
+    );
+    '''
+
 
     print('Reading data from Postgres...')
 
@@ -182,14 +190,17 @@ def main():
     print(seq.columns)
 
     print('\nStatistics of depth')
-    print(depth_stats(df))
+    print(depth_stats(seq))
 
     print('\nStatistics of magnitude')
-    print(mag_stats(df))
+    print(mag_stats(seq))
 
     print('Feature generation completed successfully.')
 
-    save_features_to_sql(seq, 'earthquake_features', engine)
+    # Create new table in postgres
+
+    create_postgres_table(engine, table_name_features, query)
+    save_to_postgres(seq, table_name_features, engine)
     print('Features saved to Postgres successfully.')
 
 if __name__=='__main__':

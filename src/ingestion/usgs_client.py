@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import os
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
+from src.GeneralFunctions.sql_functions import get_postgres_engine, save_to_postgres, create_postgres_table, print_sql_info
 
 load_dotenv()
 
@@ -77,40 +78,13 @@ def parse_from_geojson(data):
 
     return df
 
-def save_to_postgres(df, table_name, engine):
-    '''
-    Save the dataframe to a Postgres table
-
-    :param df: DataFrame with the earthquake data
-    :param table_name: Name of the table where to save the data
-    :param engine: SQLAlchemy engine connected to the Postgres database
-    '''
-    cols = ', '.join(df.columns)
-    placeholders = ', '.join(f':{col}' for col in df.columns)
-    sql = text(f'INSERT INTO {table_name} ({cols}) VALUES ({placeholders}) ON CONFLICT (event_id) DO NOTHING')
-    with engine.begin() as conn:
-        conn.execute(sql, df.to_dict(orient='records'))
-    print(f"Data saved to table {table_name} successfully.")
-
-def get_postgres_engine():
-    '''
-    Create a SQLAlchemy enginte to connect to Postgres with env vars
-    '''
-    username = os.getenv("POSTGRE_USERNAME")
-    password = os.getenv("POSTGRE_PASSWORD")
-    host = os.getenv("POSTGRE_HOST")
-    port = os.getenv("POSTGRE_PORT")
-    db = os.getenv("POSTGRE_DB")
-
-    DATABASE_URL = f'postgresql://{username}:{password}@{host}:{port}/{db}'
-    engine = create_engine(DATABASE_URL)
-    return engine
-
-def create_postgres_table(engine, table_name):
-    '''
-    Create the earthquakes table in Postgres if it does not exist
-    '''
-    create_table_query = f'''
+def main():
+    end = datetime.now(timezone.utc) # type: ignore
+    start = end -  timedelta(days=30)
+    starttime = start.strftime('%Y-%m-%d')
+    endtime = end.strftime('%Y-%m-%d')
+    table_name = 'earthquakes'
+    query = f'''
     CREATE TABLE IF NOT EXISTS {table_name} (
         event_id TEXT PRIMARY KEY,
         time TIMESTAMP,
@@ -121,25 +95,16 @@ def create_postgres_table(engine, table_name):
         depth FLOAT
     );
     '''
-    with engine.begin() as connection:
-        connection.execute(text(create_table_query))
-    print(f"Table {table_name} is ready.")
-
-def main():
-    end = datetime.now(timezone.utc) # type: ignore
-    start = end -  timedelta(days=30)
-    starttime = start.strftime('%Y-%m-%d')
-    endtime = end.strftime('%Y-%m-%d')
-    table_name = 'earthquakes'
 
     data = get_earthquakes(starttime=starttime, endtime=endtime, min_magnitude=3,limit= 100)
     print_df_info(data)
 
     engine = get_postgres_engine()
-    create_postgres_table(engine, table_name)
+    create_postgres_table(engine, table_name, query)
     save_to_postgres(data, table_name, engine)
-    print_sql_info(table_name, engine)
+    print_sql_info(table_name, engine, limit=10)
     print("Data extraction completed successfully.")
+
 
 
 def print_df_info(df):
@@ -148,12 +113,7 @@ def print_df_info(df):
     print("\nDataFrame Head:")
     print(df.head())
 
-def print_sql_info(table_name, engine):
-    query = f"SELECT * FROM {table_name} LIMIT 5;"
-    with engine.connect() as connection:
-        result = connection.execute(text(query))
-        for row in result:
-            print(row)
+
 
 if __name__ == "__main__":
     main()
