@@ -208,8 +208,7 @@ if __name__=='__main__':
 
 
 # Next thing to do:
-# Replace the save features in postgres with either the function already implemented in 
-# usgs_client or create a new file with all the sql related functions (save, read, etc) and use it in both places (ingestion and features)
+
 # Give labels to the new data 
 # Store this in a new table in Postgres
 

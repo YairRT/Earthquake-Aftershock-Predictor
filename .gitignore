@@ -11,3 +11,4 @@ __pycache__/
 # Ignore test and notebook files
 tests/
 notebooks/
+to-do.txt

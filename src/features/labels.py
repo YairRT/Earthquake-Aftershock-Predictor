@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-from features.features import haversine_km_convert
+from src.features.features import haversine_km_convert
 
 def add_aftershock_label(df: pd.DataFrame, T_hours: float = 24.0, R_km: float = 100.0,
                          min_aftershock_mag: float | None = None):
@@ -18,22 +18,18 @@ def add_aftershock_label(df: pd.DataFrame, T_hours: float = 24.0, R_km: float = 
     # At this point, the NaNs of Lat, Lon and time should already be dropped 
     # The df should already be sorted time-wise
 
-    times_ns = out['time'].view('int64').to_numpy()
+    times = out['time'].to_numpy()
     lats = out['latitude'].astype(float).to_numpy()
     lons = out['longitude'].astype(float).to_numpy()
-    mags = pd.to_numeric(out.get('magnitude', pd.Series([np.nan]*len(out))), errors='coerce').to_numpy()
-
-    T_ns = int(T_hours * 3600 * 1e9)
+    mags = out['magnitude'].to_numpy()
 
     y = np.zeros(len(out),dtype=int)
 
-    # Let's create a window T_hours into the future for events within R_km 
+    # Let's create a window T_hours into the future for events within R_km
     for i in range(len(out)):
-        t_end = times_ns[i] + T_ns
-
-        # find end index for which time > t_end
+        # find end index for which time diff > T_hours
         k = i + 1
-        while k < len(out) and times_ns[k] <= t_end:
+        while k < len(out) and (times[k] - times[i]) / np.timedelta64(1, 'h') <= T_hours:
             k+=1
         
         if k == i + 1:
@@ -61,23 +57,40 @@ def add_aftershock_label(df: pd.DataFrame, T_hours: float = 24.0, R_km: float = 
 
 
 if __name__=='__main__':
-    from ingestion.usgs_client import get_earthquakes
-    from datetime import datetime, timedelta
-    from features.features import basic_time_feats, compute_freq_series, add_seq_feat
+    # quick test
+    from src.GeneralFunctions.sql_functions import get_postgres_engine, read_from_sql, create_postgres_table, save_to_postgres
 
-    days=30
+    table_name_label = 'earthquake_labels'
+    
+    query = f'''
+    CREATE TABLE IF NOT EXISTS {table_name_label} (
+        event_id TEXT PRIMARY KEY,
+        time TIMESTAMP,
+        magnitude FLOAT,
+        place TEXT,
+        longitude FLOAT,
+        latitude FLOAT,
+        depth FLOAT,
+        hour INT,
+        dayofweek INT,
+        time_since_prev_hours FLOAT,
+        distance_to_prev_km FLOAT,
+        rolling_count_6h INT,
+        rolling_count_24h INT,
+        y_aftershock INT
+    );'''
 
-    end = datetime.utcnow()
-    start = end - timedelta(days=days)
-    starttime = start.strftime('%Y-%m-%d')
-    endtime = end.strftime('%Y-%m-%d')
 
-    df = get_earthquakes(starttime=starttime,endtime=endtime,min_magnitude=None,limit=10)
-    seq = basic_time_feats(df).head()
-    seq = add_seq_feat(seq).head()
+    engine = get_postgres_engine()
+    df = read_from_sql('earthquake_features', engine, limit=1000)
+    out = add_aftershock_label(df, T_hours=24.0, R_km=100.0, min_aftershock_mag=4.0)
 
-    out = add_aftershock_label(seq)
-    print(out.head())
+    create_postgres_table(engine, table_name_label, query)
+    save_to_postgres(out, table_name_label, engine)
+
+
+
+    print(out.head(20)[['place','y_aftershock']])
 
 
 
